@@ -234,7 +234,7 @@ void Gun::Draw(Graphics *g)
     int aWidth = Sexy::IMAGE_EYE_BLINK->mWidth;
     int aHeight = Sexy::IMAGE_EYE_BLINK->mHeight / 2;
     if (mWink)
-        mWidth /= 2;
+        aWidth /= 2;
 
     Rect anEyeRect(0, blink * aHeight, aWidth, aHeight);
     g->DrawImageRotatedF(Sexy::IMAGE_EYE_BLINK, aCornerX + 25, aCornerY + 42, mAngle, 29, 12, &anEyeRect);
