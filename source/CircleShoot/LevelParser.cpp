@@ -631,12 +631,14 @@ bool LevelParser::DoParseLevel(XMLElement &theElem, bool isLevel)
         mCurDir = "levels/" + mCurLevelId;
     }
 
+#if !defined(_WIN32)
     std::string resolve;
     resolve.resize(mCurDir.size() + 3);
     if (casepath(mCurDir.c_str(), &resolve[0]))
     {
         mCurDir = resolve.c_str();
     }
+#endif
 
     mCurDir = Sexy::RemoveTrailingSlash(mCurDir);
 
