@@ -297,15 +297,15 @@ void PracticeScreen::Draw(Graphics *g)
 	{
 		Graphics sg(*g);
 		sg.SetColor(Color(0x5B010A));
-		sg.SetFont(Sexy::FONT_MAIN10OUTLINE);
+		sg.SetFont(Sexy::FONT_MAIN8OUTLINE);
 
 		HighScoreSet::iterator anItr = mScoreSet->begin();
 		for (int i = 0; i != 3 && anItr != mScoreSet->end(); anItr++, i++)
 		{
-			g->DrawString(
+			sg.DrawString(
 				Sexy::StrFormat("%d", anItr->mScore),
 				575,
-				70 + Sexy::FONT_MAIN10OUTLINE->GetLineSpacing() * i);
+				70 + Sexy::FONT_MAIN8OUTLINE->GetLineSpacing() * i);
 		}
 
 		sg.ClipRect(0, 0, 567, 480);
@@ -313,10 +313,10 @@ void PracticeScreen::Draw(Graphics *g)
 		anItr = mScoreSet->begin();
 		for (int i = 0; i != 3 && anItr != mScoreSet->end(); anItr++, i++)
 		{
-			g->DrawString(
+			sg.DrawString(
 				anItr->mName,
 				445,
-				70 + Sexy::FONT_MAIN10OUTLINE->GetLineSpacing() * i);
+				70 + Sexy::FONT_MAIN8OUTLINE->GetLineSpacing() * i);
 		}
 	}
 
@@ -519,6 +519,13 @@ MemoryImage *PracticeScreen::GetThumbnail(std::string const &theName)
 
 void PracticeScreen::GetHighscores()
 {
+    mScoreSet->clear();
+    std::string aStage = (mIsEndless) ? "e_" + mStage : mStage;
+    const HighScoreSet &scores = GetCircleShootApp()->mHighScoreMgr->GetHighScores(aStage);
+    for (const HighScore &iter : scores)
+    {
+        mScoreSet->insert(iter);
+    }
 }
 
 void PracticeScreen::LoadBoard()

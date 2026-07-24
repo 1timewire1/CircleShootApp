@@ -62,7 +62,7 @@ public:
 	void Load();
 	void Save();
 
-	const HighScoreSet& GetHighScores(const std::string &theBoard);
+	HighScoreSet& GetHighScores(const std::string &theBoard);
 	bool SubmitScore(const std::string &theBoard, const HighScore &theScore, bool needLoad = true);
 
 	LowTime* GetLowTime(const std::string &theLevelStr);

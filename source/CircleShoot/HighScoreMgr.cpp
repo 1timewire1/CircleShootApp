@@ -47,19 +47,38 @@ HighScoreMgr::~HighScoreMgr()
 void HighScoreMgr::Load()
 {
     Clear();
-    Buffer aBuffer;
-
-    if (!gSexyAppBase->ReadBufferFromFile(Sexy::GetAppDataPath("userdata/highscores.dat"), &aBuffer))
+    bool loaded = false;
+    
+    try
+    {
+        Buffer aBuffer;
+        if (gSexyAppBase->ReadBufferFromFile(Sexy::GetAppDataPath("userdata/highscores.dat"), &aBuffer))
+        {
+            DataReader aReader;
+            aReader.OpenMemory(aBuffer.GetDataPtr(), aBuffer.GetDataLen(), false);
+            
+            uint32_t aVersion = 0;
+            if (aBuffer.GetDataLen() >= sizeof(aVersion))
+            {
+                memcpy(&aVersion, aBuffer.GetDataPtr(), sizeof(aVersion));
+                aVersion = Sexy::FromLE32(aVersion);
+                if (aVersion == gHighScoreVersion)
+                {
+                    DataSync aSync(aReader);
+                    SyncState(aSync);
+                    loaded = true;
+                }
+            }
+        }
+    }
+    catch (...)
+    {
+    }
+    
+    if (!loaded)
     {
         AddDefaults();
-        return;
     }
-
-    DataReader aReader;
-    aReader.OpenMemory(aBuffer.GetDataPtr(), aBuffer.GetDataLen(), false);
-
-    DataSync aSync(aReader);
-    SyncState(aSync);
 }
 
 void HighScoreMgr::Save()
@@ -231,16 +250,47 @@ void HighScoreMgr::SyncState(DataSync &theSync)
             theSync.SyncLong(aTime.mTime);
         }
     }
+    else
+    {
+        theSync.mWriter->WriteShort(mHighScoreMap.size());
+        for (auto iter : mHighScoreMap)
+        {
+            std::string aName = iter.first;
+            theSync.SyncString(aName);
+            HighScoreSet &aSet = iter.second;
+            
+            theSync.mWriter->WriteShort(aSet.size());
+            for (auto score : aSet)
+            {
+                score.SyncState(theSync);
+            }
+        }
+        
+        theSync.mWriter->WriteLong(mLowTimeMap.size());
+        for (auto iter : mLowTimeMap)
+        {
+            std::string aBoard = iter.first;
+            theSync.SyncString(aBoard);
+            LowTime &aTime = iter.second;
+            theSync.SyncString(aTime.mName);
+            theSync.SyncLong(aTime.mTime);
+        }
+    }
 }
 
-const HighScoreSet &HighScoreMgr::GetHighScores(const std::string &theLevelStr)
+HighScoreSet &HighScoreMgr::GetHighScores(const std::string &theLevelStr)
 {
+    if (!mHighScoreMap.contains(theLevelStr))
+    {
+        mHighScoreMap[theLevelStr] = {};
+    }
+    
     return mHighScoreMap[theLevelStr];
 }
 
 bool HighScoreMgr::SubmitScore(const std::string &theBoard, const HighScore &theScore, bool needLoad)
 {
-    HighScoreSet &aSet = mHighScoreMap[theBoard];
+    HighScoreSet &aSet = GetHighScores(theBoard);
     HighScoreSet::iterator anItr = aSet.insert(theScore);
 
     if (aSet.size() <= 10)
@@ -295,5 +345,16 @@ LowTime *HighScoreMgr::GetLowTime(const std::string &theLevelStr)
 
 bool HighScoreMgr::SubmitLowTime(const std::string &theLevelStr, const std::string &theName, unsigned int theTime, bool needLoad)
 {
-    return false;
+    if (!mLowTimeMap.contains(theLevelStr))
+    {
+        mLowTimeMap[theLevelStr] = {};
+    }
+    
+    LowTime &aLowTime = mLowTimeMap[theLevelStr];
+    if (aLowTime.mTime == 0 || aLowTime.mTime > theTime)
+    {
+        aLowTime.mName = theName;
+        aLowTime.mTime = theTime;
+    }
+    return true;
 }

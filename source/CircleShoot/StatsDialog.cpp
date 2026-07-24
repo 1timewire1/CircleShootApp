@@ -10,6 +10,7 @@
 #include "CircleDialog.h"
 #include "CircleShootApp.h"
 #include "HighScoreMgr.h"
+#include "ProfileMgr.h"
 #include "StatsDialog.h"
 #include "SoundMgr.h"
 #include "Res.h"
@@ -113,6 +114,22 @@ StatsDialog::StatsDialog(Board *theBoard, bool doCounter) : CircleDialog(Sexy::I
         }
 
         mCurrentTip = aGameOverTexts[rand() % 8];
+
+        // update highscores
+        std::string aBoard;
+        if (mBoard->mApp->mIsPractice)
+        {
+            aBoard = (mBoard->mIsEndless) ? "e_" + mBoard->mLevelDesc->mName : mBoard->mLevelDesc->mName;
+        }
+        else
+        {
+            aBoard = "adventure";
+        }
+        
+        HighScore aHighScore = {};
+        aHighScore.mName = mBoard->mApp->mProfile->mName;
+        aHighScore.mScore = mBoard->mScore + mTargetTimeBonus;
+        mBoard->mApp->mHighScoreMgr->SubmitScore(aBoard, aHighScore, false);
     }
     else
     {
