@@ -992,6 +992,11 @@ void CircleShootApp::DoGetReadyDialog()
 
 void CircleShootApp::PlaySong(int id, bool fade, double fadeSpeed)
 {
+#if defined(__SWITCH__)
+    // TODO: figure out why this is crashing
+    return;
+#endif
+
     if (this->mLastSong != id)
     {
         int prevSong = mSongId;

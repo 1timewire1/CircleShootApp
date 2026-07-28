@@ -356,6 +356,19 @@ extern "C" ssize_t __write_chk(int fd, const void* buf, size_t count, size_t buf
 FILE *stderr = &__sF[2];
 #endif
 
+#elif defined(__SWITCH__)
+#include <switch.h>
+void PlatformInit() 
+{
+    const char *path = "sdmc:/switch/zumaportable";
+    Sexy::SetResourceFolder(path);
+    Sexy::SetAppDataFolder(path);
+    Sexy::ChDir(path);
+}
+extern "C" {
+	u32 __nx_stack_size = 4 * 1024 * 1024; // 4MB
+}
+
 #else
 void PlatformInit() 
 {
