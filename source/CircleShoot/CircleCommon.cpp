@@ -370,7 +370,7 @@ void Sexy::SetupDialog(Dialog *theDialog, int theMinWidth)
     }
     
     // make sure dialog is above onscreen keyboard
-#if defined (__ANDROID__)
+#if defined (__ANDROID__) || defined(__SWITCH__)
     winY /= 4;
 #endif
 

@@ -482,7 +482,7 @@ void HelpWidget3::Draw(Graphics *g)
     Rect aRightTextRect = Rect(430, mHeight - 2 * Sexy::FONT_DIALOG->GetHeight() - 15, 170, 0);
     int frame = 1;
 
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(__SWITCH__)
     g->SetColor(Color(0xFFFF00));
     WriteWordWrapped(g, aRightTextRect, "Tap the frog to swap balls.", -1, 0);
 #else

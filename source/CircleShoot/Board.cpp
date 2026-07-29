@@ -1384,7 +1384,7 @@ void Board::MouseMove(int x, int y)
         return;
 
     // mobile don't move when tapping frog to switch balls
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(__SWITCH__)
     if (mGun->IsInside(x, y))
         return;
 #endif
@@ -1440,7 +1440,7 @@ void Board::ActivateMouse(int x, int y, int theClickCount)
             }
 
             // mobile tap frog to swap bullets
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(__SWITCH__)
             if (mGun->IsInside(x, y))
             {
                 mGun->SwapBullets();
@@ -1470,7 +1470,7 @@ void Board::ActivateMouse(int x, int y, int theClickCount)
 void Board::MouseUp(int x, int y, int theClickCount)
 {
     Widget::MouseUp(x, y, theClickCount);
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(__SWITCH__)
     ActivateMouse(x, y, theClickCount);
 #endif
 }
@@ -1478,7 +1478,7 @@ void Board::MouseUp(int x, int y, int theClickCount)
 void Board::MouseDown(int x, int y, int theClickCount)
 {
     Widget::MouseDown(x, y, theClickCount);
-#if !defined(__ANDROID__)
+#if !defined(__ANDROID__) && !defined(__SWITCH__)
     ActivateMouse(x, y, theClickCount);
 #endif
 }

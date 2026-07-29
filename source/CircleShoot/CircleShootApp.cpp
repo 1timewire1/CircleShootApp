@@ -278,7 +278,7 @@ void CircleShootApp::LostFocus()
     if (mBoard)
     {
         mBoard->Pause(true);
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(__SWITCH__)
         mBoard->SaveGame(GetSaveGameName(mBoard->IsPracticeMode(), mProfile->mId));
 #endif
     }
