@@ -16,6 +16,9 @@ namespace Sexy
 	{
 	public:
         SDL_Thread *mTaskProc;
+
+        WorkerThread();
+        ~WorkerThread();
 		void DoTask(SexyThreadCallback *func, void* param);
         void WaitForTask();
 	};
