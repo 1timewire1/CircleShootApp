@@ -121,6 +121,7 @@ namespace Sexy
     void DrawCheckboxText(Graphics *g, std::string const &theText, Widget *theWidget);
     void SetupButton(DialogButton *theButton, int numCols);
     CircleButton *MakeButton(int id, ButtonListener *theListener, std::string const &label, int flags, Image *image, int numCols);
+    CircleButton *MakeSpoofButton(ButtonListener *theListener, int x, int y);
     CircleCheckbox *MakeCheckbox(int id, CheckboxListener *theListener);
     void SetupDialog(Dialog *theDialog, int theMinWidth);
     void SetupEditWidget(EditWidget *theWidget);

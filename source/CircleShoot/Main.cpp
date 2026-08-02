@@ -364,6 +364,17 @@ void PlatformInit()
     Sexy::SetResourceFolder(path);
     Sexy::SetAppDataFolder(path);
     Sexy::ChDir(path);
+    std::string logpath = Sexy::StrFormat("%s/log.txt", path);
+    FILE *logfile = fopen(logpath.c_str(), "wb");
+    const auto LogFunction = [](void *userdata, int category, SDL_LogPriority priority, const char *message)
+    {
+        if (userdata && message)
+        {
+            fprintf((FILE*)userdata, "%s\n", message);
+            fflush((FILE*)userdata);
+        }
+    };
+    SDL_LogSetOutputFunction(LogFunction, logfile);
 }
 extern "C" {
 	u32 __nx_stack_size = 4 * 1024 * 1024; // 4MB
@@ -377,8 +388,8 @@ void PlatformInit()
 
 int main(int argc, char *argv[])
 {
-    Sexy::CircleShootApp app;
     PlatformInit();
+    Sexy::CircleShootApp app;
 
     SDL_Log("Init");
     app.Init();

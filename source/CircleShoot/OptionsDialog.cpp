@@ -26,9 +26,11 @@ OptionsDialog::OptionsDialog(bool inMainMenu) : CircleDialog(Sexy::IMAGE_DIALOG_
 
     mMusicVolumeSlider = new Slider(Sexy::IMAGE_SLIDER_TRACK, Sexy::IMAGE_SLIDER_THUMB, 0, this);
     mMusicVolumeSlider->SetValue(gSexyAppBase->GetMusicVolume());
+    mSpoofMusic = MakeSpoofButton(this, Sexy::IMAGE_SLIDER_THUMB->mWidth, Sexy::IMAGE_SLIDER_THUMB->mHeight);
 
     mSfxVolumeSlider = new Slider(Sexy::IMAGE_SLIDER_TRACK, Sexy::IMAGE_SLIDER_THUMB, 1, this);
     mSfxVolumeSlider->SetValue(gSexyAppBase->GetSfxVolume());
+    mSpoofSound = MakeSpoofButton(this, Sexy::IMAGE_SLIDER_THUMB->mWidth, Sexy::IMAGE_SLIDER_THUMB->mHeight);
 
     mFullScreenCheckbox = MakeCheckbox(2, this);
     mCustomCursorsCheckbox = MakeCheckbox(3, this);
@@ -125,6 +127,8 @@ void OptionsDialog::AddedToManager(WidgetManager *theWidgetManager)
     theWidgetManager->AddWidget(mButtonRegister);
     theWidgetManager->AddWidget(mButtonBack);
     theWidgetManager->AddWidget(mButtonUpdates);
+    theWidgetManager->AddWidget(mSpoofSound);
+    theWidgetManager->AddWidget(mSpoofMusic);
 }
 
 void OptionsDialog::RemovedFromManager(WidgetManager *theWidgetManager)
@@ -139,6 +143,21 @@ void OptionsDialog::RemovedFromManager(WidgetManager *theWidgetManager)
     theWidgetManager->RemoveWidget(mButtonRegister);
     theWidgetManager->RemoveWidget(mButtonUpdates);
     theWidgetManager->RemoveWidget(mButtonBack);
+    theWidgetManager->RemoveWidget(mSpoofSound);
+    theWidgetManager->RemoveWidget(mSpoofMusic);
+}
+
+void OptionsDialog::Update()
+{
+    int bw = Sexy::IMAGE_SLIDER_THUMB->mWidth;
+    int bh = Sexy::IMAGE_SLIDER_THUMB->mHeight;
+    int dist = Sexy::IMAGE_SLIDER_TRACK->mWidth - bw;
+    int aSoundX = mSfxVolumeSlider->mX + dist * mSfxVolumeSlider->mVal;
+    int aSoundY = mSfxVolumeSlider->mY - bh / 2;
+    int aMusicX = mMusicVolumeSlider->mX + dist * mMusicVolumeSlider->mVal;
+    int aMusicY = mMusicVolumeSlider->mY - bh / 2;
+    mSpoofSound->Resize(aSoundX, aSoundY, bw, bh);
+    mSpoofMusic->Resize(aMusicX, aMusicY, bw, bh);
 }
 
 void OptionsDialog::Draw(Graphics *g)

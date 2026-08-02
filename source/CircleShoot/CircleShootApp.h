@@ -23,6 +23,15 @@ namespace Sexy
     class HighScoreMgr;
     class UserProfile;
     class Buffer;
+    
+    enum Direction
+    {
+        Direction_Invalid,
+        Direction_Up,
+        Direction_Down,
+        Direction_Left,
+        Direction_Right,
+    };
 
     class CircleShootApp : public SexyAppBase
     {
@@ -55,6 +64,9 @@ namespace Sexy
         int mMaxTime;
         bool mIsPractice;
         int mUnk36;
+        SDL_GameController *mController;
+        int mControllerIndex;
+        Widget *mControllerWidget;
 
         CircleShootApp();
         virtual ~CircleShootApp();
@@ -63,6 +75,12 @@ namespace Sexy
         virtual void Shutdown();
         virtual void UpdateFrames();
         virtual void ButtonDepress(int theId);
+        virtual void HandleEvent(SDL_Event *ev);
+        virtual void DrawAboveWidgets(Graphics *g);
+        void MoveToControllerWidget();
+        std::vector<Widget *> GetClickableWidgets(Rect r, int theFlags);
+        SDL_Point Translate(int x, int y);
+        Widget *Move(Widget *w, Direction d);
 
         virtual Dialog *NewDialog(int theDialogId, bool isModal, const SexyString &theDialogHeader, const SexyString &theDialogLines, const SexyString &theDialogFooter, int theButtonMode);
         virtual bool KillDialog(int theDialogId);

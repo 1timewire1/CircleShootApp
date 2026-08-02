@@ -91,7 +91,7 @@ enum TransitionState
 ///////////////////////////////////////////////////////////////////////////////
 class TransitionMgr
 {
-protected:
+public:
 	Board *mBoard;
 	FrogMoveList mFrogMoveList;
 	FrogScaleList mFrogScaleList;

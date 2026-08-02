@@ -75,6 +75,8 @@ PracticeScreen::PracticeScreen()
 		mDoorInfo[i].mRect.mWidth = aWidth >> 2;
 		mDoorInfo[i].mRect.mY = aDoors[i].mY;
 		mDoorInfo[i].mRect.mX = aDoors[i].mX;
+        mDoorInfo[i].mSpoof = MakeSpoofButton(this, mDoorInfo[i].mRect.mWidth, mDoorInfo[i].mRect.mHeight);
+        mDoorInfo[i].mSpoof->SetDisabled(true);
 	}
 
 	mLocked = false;
@@ -119,6 +121,11 @@ void PracticeScreen::Resize(int x, int y, int theWidth, int theHeight)
     mMainMenuButton->Resize(x + 10, y + 422, mMainMenuButton->mWidth, mMainMenuButton->mHeight);
 	mSurvivalButton->Resize(x + 506, y + 413, mSurvivalButton->mWidth, mSurvivalButton->mHeight);
 	mPracticeButton->Resize(x + 505, y + 446, mPracticeButton->mWidth, mPracticeButton->mHeight);
+    for (int i = 0; i < 4; i++)
+    {
+        Widget *w = mDoorInfo[i].mSpoof;
+        w->Resize(x + mDoorInfo[i].mRect.mX, y + mDoorInfo[i].mRect.mY, w->mWidth, w->mHeight);
+    }
 }
 
 void PracticeScreen::AddedToManager(WidgetManager *theWidgetManager)
@@ -133,6 +140,10 @@ void PracticeScreen::AddedToManager(WidgetManager *theWidgetManager)
 	theWidgetManager->AddWidget(mMainMenuButton);
 	theWidgetManager->AddWidget(mSurvivalButton);
 	theWidgetManager->AddWidget(mPracticeButton);
+    for (int i = 0; i < 4; i++)
+    {
+        theWidgetManager->AddWidget(mDoorInfo[i].mSpoof);
+    }
 }
 
 void PracticeScreen::RemovedFromManager(WidgetManager *theWidgetManager)
@@ -145,6 +156,10 @@ void PracticeScreen::RemovedFromManager(WidgetManager *theWidgetManager)
 	theWidgetManager->RemoveWidget(mMainMenuButton);
 	theWidgetManager->RemoveWidget(mSurvivalButton);
 	theWidgetManager->RemoveWidget(mPracticeButton);
+    for (int i = 0; i < 4; i++)
+    {
+        theWidgetManager->RemoveWidget(mDoorInfo[i].mSpoof);
+    }
 
 	GetCircleShootApp()->mProfile->mLastPracticeBoard = mCurrentBoard;
 	GetCircleShootApp()->mProfile->mPracticeEndless = mIsEndless;
@@ -230,6 +245,7 @@ void PracticeScreen::Draw(Graphics *g)
 			aFrame = 0;
 		}
 
+        mDoorInfo[i].mSpoof->SetDisabled(aFrame == 0);
 		g->DrawImageCel(mDoorInfo[i].mImage, mDoorInfo[i].mRect.mX, mDoorInfo[i].mRect.mY, aFrame);
 	}
 

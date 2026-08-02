@@ -10,7 +10,16 @@
 #include <SexyAppFramework/WidgetManager.h>
 #include <SexyAppFramework/Checkbox.h>
 #include <SexyAppFramework/DialogButton.h>
+#include <SexyAppFramework/Rect.h>
+#include <SexyAppFramework/graphics/GLInterface.h>
+#include <SexyAppFramework/widget/Slider.h>
+#include <algorithm>
 
+#include "CircleButton.h"
+#include "CurveMgr.h"
+#include "SoundMgr.h"
+#include "TransitionMgr.h"
+#include "Gun.h"
 #include "Board.h"
 #include "DataSync.h"
 #include "CircleCommon.h"
@@ -72,6 +81,9 @@ CircleShootApp::CircleShootApp()
     mMaxExecutions = 0;
     mMaxPlays = 0;
     mMaxTime = 0;
+    mController = NULL;
+    mControllerIndex = -1;
+    mControllerWidget = NULL;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -85,6 +97,13 @@ CircleShootApp::~CircleShootApp()
     delete mHighScoreMgr;
     delete mWidgetMover;
     delete mWorkerThread;
+    if (mController)
+    {
+        SDL_GameControllerClose(mController);
+        mController = NULL;
+        mControllerIndex = -1;
+        mControllerWidget = NULL;
+    }
 
     // mResourceManager->DeleteResources("");
 }
@@ -216,6 +235,24 @@ void CircleShootApp::UpdateFrames()
 {
     SexyAppBase::UpdateFrames();
     mWidgetMover->Update();
+
+    if (mBoard && mController)
+    {
+        int dir = 0;
+        if (SDL_GameControllerGetButton(mController, SDL_CONTROLLER_BUTTON_DPAD_LEFT))
+            dir = 1;
+        else if (SDL_GameControllerGetButton(mController, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))
+            dir = -1;
+
+        if (dir)
+        {
+            const float TURN_RATE = SEXY_PI / (100.0f * 1.5f);
+            float rot = TURN_RATE * dir;
+            mBoard->mGun->SetAngle(mBoard->mGun->GetAngle() + rot);
+            mBoard->DoAccuracy(mBoard->mAccuracyCount > 0);
+            mBoard->mRecalcGuide = true;
+        }
+    }
 }
 
 void CircleShootApp::ButtonDepress(int theId)
@@ -1333,4 +1370,574 @@ bool CircleShootApp::ChangeDirHook(const char *theIntendedPath)
 void CircleShootApp::CloseRequestAsync()
 {
 	Shutdown();
+}
+SDL_Point CircleShootApp::Translate(int x, int y)
+{
+    const Rect &r = mGLInterface->mPresentationRect;
+    SDL_Point result = {};
+    result.x = ((float)x / mWidth) * r.mWidth + r.mX;
+    result.y = ((float)y / mHeight) * r.mHeight + r.mY;
+    return result;
+}
+void CircleShootApp::MoveToControllerWidget()
+{
+    static int lastx, lasty;
+    int x = mControllerWidget->mX + mControllerWidget->mWidth / 2.0f;
+    int y = mControllerWidget->mY + mControllerWidget->mHeight / 2.0f;
+    if (lastx != x || lasty != y)
+    {
+        lastx = x;
+        lasty = y;
+        SDL_Point pt = {};
+
+        // do mouse leave on widget
+        pt = Translate(0, 0);
+        SDL_Event ev = {};
+        ev.motion.x = pt.x;
+        ev.motion.y = pt.y;
+        ev.type = SDL_MOUSEMOTION;
+        SDL_PushEvent(&ev);
+
+        // do mouse enter on widget
+        pt = Translate(x, y);
+        ev.type = SDL_MOUSEMOTION;
+        ev.motion.x = pt.x;
+        ev.motion.y = pt.y;
+        SDL_PushEvent(&ev);
+
+        // make sure window draws the moved cursor
+        mWidgetManager->MarkAllDirty();
+    }
+}
+void CircleShootApp::DrawAboveWidgets(Graphics *g)
+{
+    if (mController)
+    {
+        // clear controller widget if it's no longer clickable
+        bool found = false;
+        int aFlags = mWidgetManager->GetWidgetFlags();
+        Rect aRect = { 0, 0, mWidth, mHeight };
+        auto widgets = GetClickableWidgets(aRect, aFlags);
+        for (auto widget : widgets)
+        {
+            if (mControllerWidget == widget)
+            {
+                found = true;
+            }
+        }
+
+        if (!found)
+        {
+            if (widgets.size())
+            {
+                bool handled = false;
+                if (mPracticeScreen)
+                {
+                    Widget *pb = mPracticeScreen->mPracticeButton;
+                    if (mControllerWidget == mPracticeScreen->mSurvivalButton)
+                    {
+                        handled = true;
+                        mControllerWidget = mPracticeScreen->mPracticeButton;
+                    }
+                    else if (mControllerWidget == mPracticeScreen->mPracticeButton)
+                    {
+                        handled = true;
+                        mControllerWidget = mPracticeScreen->mSurvivalButton;
+                    }
+                }
+
+                if (!handled)
+                {
+                    SDL_Event ev = {};
+                    ev.type = SDL_CONTROLLERBUTTONDOWN;
+                    ev.cbutton.button = SDL_CONTROLLER_BUTTON_DPAD_LEFT;
+                    SDL_PushEvent(&ev);
+                    mControllerWidget = NULL;
+                }
+            }
+            else
+            {
+                mControllerWidget = NULL;
+            }
+        }
+
+        // draw image above all widgets
+        if (mControllerWidget)
+        {
+            MoveToControllerWidget();
+            g->Translate(mControllerWidget->mX, mControllerWidget->mY);
+            Image *aImage = gSexyAppBase->mCursorImages[CURSOR_HAND];
+            g->DrawImage(aImage, 0, 0);
+        }
+    }
+}
+std::vector<Widget *> CircleShootApp::GetClickableWidgets(Rect theRect, int theFlags)
+{
+    // prevent board menu button from being clickable
+    std::vector<Widget *> result;
+    auto widgets = mWidgetManager->GetClickableWidgets(theRect, theFlags);
+    for (auto widget : widgets)
+    {
+        if (!mBoard || widget != mBoard->mMenuButton)
+        {
+            result.push_back(widget);
+        }
+    }
+    return result;
+}
+Widget *CircleShootApp::Move(Widget *start, Direction dir)
+{
+    Widget *result = NULL;
+
+    struct Cell
+    {   
+        Widget *widget = NULL;
+        bool found = false;
+        Cell(Widget *w) { widget = w; }
+        Cell() = default;
+    };
+    const int NX = 9;
+    const int NY = 7;
+    struct CellGrid
+    {
+        Cell cells[NY][NX];
+    };
+    CellGrid grid = {};
+
+    struct CellPos
+    {
+        int x;
+        int y;
+    };
+    CellPos default_pos = {};
+
+    const auto GetCellPos = [&](Widget *w) -> CellPos
+    {
+        CellPos result = { -1, -1 };
+        for (int y = 0; y < NY; y++)
+        {
+            for (int x = 0; x < NX; x++)
+            {
+                if (grid.cells[y][x].widget == w && w != NULL)
+                {
+                    result.x = x;
+                    result.y = y;
+                    return result;
+                }
+            }
+        }
+        return result;
+    };
+    const auto GetCell = [&](CellPos pos) -> Cell *
+    {
+        Cell *result = NULL;
+        if (pos.x >= 0 && pos.x < NX &&
+            pos.y >= 0 && pos.y < NY)
+        {
+            result = &grid.cells[pos.y][pos.x];
+        }
+        return result;
+    };
+    
+    int aFlags = mWidgetManager->GetWidgetFlags();
+    Rect aRect = { 0, 0, mWidth, mHeight };
+    auto widgets = GetClickableWidgets(aRect, aFlags);
+
+    const auto HasWidget = [&](Widget *w)
+    {
+        bool result = false;
+        for (Widget *iter : widgets)
+        {
+            if (iter == w)
+            {
+                result = true;
+            }
+        }
+        return result;
+    };
+
+    OptionsDialog *options = (OptionsDialog *)GetDialog(DialogType_Options);
+    UserDialog *user = (UserDialog *)GetDialog(DialogType_User);
+    if (mPracticeScreen)
+    {
+        Widget *nb = mPracticeScreen->mNextButton;
+        Widget *bb = mPracticeScreen->mBackButton;
+        Widget *gb = mPracticeScreen->mGauntPlayButton;
+        Widget *mmb = mPracticeScreen->mMainMenuButton;
+        Widget *pb = mPracticeScreen->mPracticeButton;
+        Widget *sb = mPracticeScreen->mSurvivalButton;
+        Widget *sb0 = mPracticeScreen->mDoorInfo[0].mSpoof;
+        Widget *sb1 = mPracticeScreen->mDoorInfo[1].mSpoof;
+        Widget *sb2 = mPracticeScreen->mDoorInfo[2].mSpoof;
+        Widget *sb3 = mPracticeScreen->mDoorInfo[3].mSpoof;
+        
+        //              SUNGOD
+        //              JAGUAR
+        //              EAGLE
+        //              RABBIT
+        //                              SURVIVAL
+        // MM   BACK    PLAY    NEXT    PRACTICE
+        grid = {
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL,  sb3, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL,  sb2, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL,  sb1, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL,  sb0, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL,   sb, NULL, NULL, NULL, NULL,
+             mmb,   bb,   gb,   nb,   pb, NULL, NULL, NULL, NULL,
+        };
+        default_pos = GetCellPos(mmb);
+    }
+    else if (user && HasWidget(user->mRenameButton))
+    {
+        Widget *renb = user->mRenameButton;
+        Widget *delb = user->mDeleteButton;
+        Widget *okkb = user->mYesButton;
+        Widget *cnlb = user->mNoButton;
+        
+        grid = {
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            renb, delb, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            okkb, cnlb, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        };
+        default_pos = GetCellPos(renb);
+    }
+    else if (options && HasWidget(options->mFullScreenCheckbox))
+    {
+        // MUSIC
+        // SOUND
+        // FULL     CURSOR
+        // 3D       3D
+        // DONE     DONE     
+        //Widget *fb = options->mMusicVolumeSlider;
+        //Widget *fb = options->mSfxVolumeSlider;
+        Widget *musc = options->mSpoofMusic;
+        Widget *sond = options->mSpoofSound;
+        Widget *full = options->mFullScreenCheckbox;
+        Widget *curs = options->mCustomCursorsCheckbox;
+        Widget *accl = options->m3DAccelCheckbox;
+        Widget *bhlp = options->mButtonHelp;
+        Widget *main = options->mButtonBack;
+        Widget *game = options->mYesButton;
+        
+        double delta = (dir == Direction_Left) ? -0.1 :
+                       (dir == Direction_Right) ? 0.1 : 0;
+        if (start == sond && delta != 0.0)
+        {
+            double val = std::clamp(gSexyAppBase->GetSfxVolume() + delta, 0.0, 1.0);
+            gSexyAppBase->SetSfxVolume(val);
+            options->mSfxVolumeSlider->SetValue(val);
+            return start;
+        }
+        if (start == musc && delta != 0.0)
+        {
+            double val = std::clamp(gSexyAppBase->GetMusicVolume() + delta, 0.0, 1.0);
+            gSexyAppBase->SetMusicVolume(val);
+            options->mMusicVolumeSlider->SetValue(val);
+            return start;
+        }
+
+        if (!HasWidget(game)) game = NULL;
+        if (!HasWidget(main)) main = NULL;
+
+        grid = {
+            musc, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            sond, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            full, curs, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            accl, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            bhlp, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            main, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            game, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        };
+        default_pos = GetCellPos((game) ? game : main);
+    }
+    else if (mAdventureScreen)
+    {
+        Widget *main = mAdventureScreen->mMainMenuButton;
+        Widget *play = mAdventureScreen->mPlayButton;
+        Widget *ent0 = mAdventureScreen->mDoorInfo[0].mSpoof;
+        Widget *ent1 = mAdventureScreen->mDoorInfo[1].mSpoof;
+        Widget *ent2 = mAdventureScreen->mDoorInfo[2].mSpoof;
+        Widget *ent3 = mAdventureScreen->mDoorInfo[3].mSpoof;
+        Widget *ent4 = mAdventureScreen->mDoorInfo[4].mSpoof;
+        Widget *ent5 = mAdventureScreen->mDoorInfo[5].mSpoof;
+        Widget *ent6 = mAdventureScreen->mDoorInfo[6].mSpoof;
+        Widget *ent7 = mAdventureScreen->mDoorInfo[7].mSpoof;
+        Widget *ent8 = mAdventureScreen->mDoorInfo[8].mSpoof;
+        Widget *ent9 = mAdventureScreen->mDoorInfo[9].mSpoof;
+        Widget *ent10 = mAdventureScreen->mDoorInfo[10].mSpoof;
+        Widget *ent11 = mAdventureScreen->mDoorInfo[11].mSpoof;
+
+        if (start == main && dir == Direction_Right)
+        {
+            ent3 = ent4 = ent5 = NULL;
+        }
+        else if (start == play && dir == Direction_Left)
+        {
+            ent6 = ent7 = ent8 = NULL;
+        }
+
+        grid = {
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, ent9,ent10,ent11, NULL, NULL, NULL,
+            ent3, ent4, ent5, NULL, NULL, NULL, ent6, ent7, ent8,
+            NULL, NULL, NULL, ent0, ent1, ent2, NULL, NULL, NULL,
+            main, NULL, NULL, NULL, NULL, NULL, NULL, NULL, play,
+        };
+        default_pos = GetCellPos(main);
+    }
+    else if (mMainMenu && HasWidget(mMainMenu->mNotYouLink))
+    {
+        Widget *noty = mMainMenu->mNotYouLink;
+        Widget *play = mMainMenu->mArcadeButton;
+        Widget *gaun = mMainMenu->mGauntletButton;
+        Widget *opts = mMainMenu->mOptionsButton;
+        Widget *more = mMainMenu->mMoreGamesButton;
+        Widget *quit = mMainMenu->mQuitButton;
+
+        grid = {
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            noty, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, play, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, gaun, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, opts, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, quit, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        };
+        default_pos = GetCellPos(play);
+    }
+    else
+    {
+        const auto Comparator = [](const Widget *a, const Widget *b) -> bool
+        {
+            return a->mX < b->mX;
+        };
+        
+        std::sort(widgets.begin(), widgets.end(), Comparator);
+        
+        size_t i = 0;
+        for (int x = 0; x < NX; x++)
+        {
+            if (i < widgets.size())
+            {
+                grid.cells[0][x].widget = widgets[i];
+                i += 1;
+            }
+        }
+
+        if (widgets.size())
+        {
+            default_pos = GetCellPos(widgets.front());
+        }
+    }
+
+    // find 
+    CellPos iter = GetCellPos(start);
+    if (iter.x != -1 && iter.y != -1)
+    {
+        for (int num = 0; num < 9; num++)
+        {
+            if (dir == Direction_Up)
+                iter.y -= 1;
+            else if (dir == Direction_Down)
+                iter.y += 1;
+            else if (dir == Direction_Left)
+                iter.x -= 1;
+            else if (dir == Direction_Right)
+                iter.x += 1;
+
+            for (int j = 0; j < 9; j++)
+            {
+                int jj[] = { j, -j };
+                for (int k : jj)
+                {
+                    CellPos iterk = iter;
+                    if (dir == Direction_Up || dir == Direction_Down)
+                        iterk.x += k;
+                    else if (dir == Direction_Left || dir == Direction_Right)
+                        iterk.y += k;
+                    
+                    Cell *next = GetCell(iterk);
+                    if (next && next->widget && !next->widget->mDisabled)
+                    {
+                        result = next->widget;
+                        break;
+                    }
+                }
+                if (result) break;
+            }
+            if (result) break;
+        }
+    }
+    else
+    {
+        Cell *next = GetCell(default_pos);
+        if (next)
+        {
+            result = next->widget;
+        }
+    }
+    
+    return result;
+}
+void CircleShootApp::HandleEvent(SDL_Event *ev)
+{
+    static int i = -1;
+    static int x = 0;
+    static int y = 0;
+    
+    if (ev->type == SDL_CONTROLLERDEVICEADDED)
+    {
+        if (mController == NULL)
+        {
+            SDL_GameController *gc = SDL_GameControllerOpen(ev->cdevice.which);
+            SDL_Log("SDL_CONTROLLERDEVICEADDED SDL_GameControllerOpen %d: %s",
+                    ev->cdevice.which, (gc == NULL) ? SDL_GetError() : "Success");
+            if (gc)
+            {
+                mController = gc;
+                mControllerIndex = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc));
+            }
+        }
+    }
+    else if (ev->type == SDL_CONTROLLERDEVICEREMOVED)
+    {
+        SDL_Log("SDL_CONTROLLERDEVICEREMOVED %d REMOVED %d", ev->cdevice.which, mControllerIndex);
+        if (ev->cdevice.which == mControllerIndex)
+        {
+            SDL_GameControllerClose(mController);
+            mController = NULL;
+            mControllerIndex = -1;
+            mControllerWidget = NULL;
+        }
+    }
+    
+    if (mBoard &&
+        mBoard->mPauseCount == 0 &&
+        mBoard->mDialogCount == 0 &&
+        mBoard->mTransitionMgr->mState != TransitionState_TempleComplete)
+    {
+        if (ev->type == SDL_CONTROLLERAXISMOTION)
+        {
+            Sint16 x = SDL_GameControllerGetAxis(mController, SDL_CONTROLLER_AXIS_LEFTX);
+            Sint16 y = SDL_GameControllerGetAxis(mController, SDL_CONTROLLER_AXIS_LEFTY);
+            const int JOYSTICK_DEAD_ZONE = 8000;
+            float dist = sqrtf(y*y + x*x);
+            if (dist > JOYSTICK_DEAD_ZONE)
+            {
+                float angle = atan2f(-y, x) + (SEXY_PI / 2.0f);
+                mBoard->mGun->SetAngle(angle);
+                mBoard->DoAccuracy(mBoard->mAccuracyCount > 0);
+                mBoard->mRecalcGuide = true;
+            }
+        }
+        else if (ev->type == SDL_CONTROLLERBUTTONDOWN)
+        {
+            if (ev->cbutton.button == SDL_CONTROLLER_BUTTON_START)
+            {
+                if (mBoard->mPauseCount == 0)
+                {
+                    DoOptionsDialog();
+                }
+            }
+            else if (ev->cbutton.button == SDL_CONTROLLER_BUTTON_A)
+            {
+                if (mBoard->mTransitionMgr->mState == TransitionState_LevelBegin)
+                {
+                    mBoard->mSoundMgr->KillAllSounds();
+                    mBoard->StartLevel();
+                }
+                else
+                {
+                    if (mBoard->mGameState == GameState_Playing)
+                    {
+                        bool aCanFire = true;
+                        for (int i = 0; i < mBoard->mNumCurves; i++)
+                        {
+                            if (!mBoard->mCurveMgr[i]->CanFire())
+                                aCanFire = false;
+                        }
+
+                        if (aCanFire)
+                        {
+                            if (mBoard->mGun->StartFire())
+                            {
+                                PlaySample(Sexy::SOUND_BALLFIRE);
+                            }
+                        }
+                    }
+                }
+            }
+            else if (ev->cbutton.button == SDL_CONTROLLER_BUTTON_B)
+            {
+                mBoard->mGun->SwapBullets();
+            }
+            else if (ev->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN ||
+                     ev->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP)
+            {
+                mBoard->mGun->SetAngle(mBoard->mGun->GetAngle() + SEXY_PI);
+                mBoard->DoAccuracy(mBoard->mAccuracyCount > 0);
+                mBoard->mRecalcGuide = true;
+            }
+        }
+    }
+    else
+    {
+        bool aTempleCompleteClickable = false;
+        if (mBoard &&
+            mBoard->mTransitionMgr->mState == TransitionState_TempleComplete &&
+            mBoard->mTransitionMgr->mStateCount < mBoard->mTransitionMgr->mResetFrame)
+        {
+            aTempleCompleteClickable = true;
+        }
+        
+        if (ev->type == SDL_CONTROLLERBUTTONDOWN)
+        {
+            Direction dir = (ev->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) ? Direction_Left :
+                            (ev->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) ? Direction_Right :
+                            (ev->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP) ? Direction_Up :
+                            (ev->cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) ? Direction_Down : Direction_Invalid;
+
+            if (dir != Direction_Invalid)
+            {
+                Widget *next = CircleShootApp::Move(mControllerWidget, dir);
+                if (next)
+                {
+                    mControllerWidget = next;
+                    MoveToControllerWidget();
+                }
+            }
+            else if (ev->cbutton.button == SDL_CONTROLLER_BUTTON_A)
+            {
+                if (aTempleCompleteClickable)
+                {
+                    mBoard->mTransitionMgr->FinishAllTextBlurbs();
+                    mBoard->mTransitionMgr->mResetFrame = mBoard->mTransitionMgr->mStateCount;
+                }
+                else
+                {
+                    int x = mControllerWidget->mX + mControllerWidget->mWidth / 2.0f;
+                    int y = mControllerWidget->mY + mControllerWidget->mHeight / 2.0f;
+                    SDL_Point pt = Translate(x, y);
+
+                    SDL_Event ev = {};
+                    ev.type = SDL_MOUSEBUTTONDOWN;
+                    ev.button.x = pt.x;
+                    ev.button.y = pt.y;
+                    SDL_PushEvent(&ev);
+
+                    ev.type = SDL_MOUSEBUTTONUP;
+                    ev.button.x = pt.x;
+                    ev.button.y = pt.y;
+                    SDL_PushEvent(&ev);
+                }
+            }
+        }
+    }
 }

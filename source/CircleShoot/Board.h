@@ -74,7 +74,7 @@ namespace Sexy
 	///////////////////////////////////////////////////////////////////////////////
 	class Board : public Widget, public ButtonListener
 	{
-	protected:
+	public:
 		friend class CurveMgr;
 		friend class TransitionMgr;
 		friend class StatsDialog;

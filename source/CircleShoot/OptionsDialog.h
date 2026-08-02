@@ -32,6 +32,7 @@ namespace Sexy
         virtual void SliderVal(int theId, double theVal);
         virtual void CheckboxChecked(int theId, bool checked);
 
+        virtual void Update();
         virtual void Draw(Graphics *g);
 
         Slider *mMusicVolumeSlider;
@@ -43,6 +44,8 @@ namespace Sexy
         CircleButton *mButtonRegister;
         CircleButton *mButtonUpdates;
         CircleButton *mButtonBack;
+        CircleButton *mSpoofSound;
+        CircleButton *mSpoofMusic;
         bool mInMainMenu;
         int mExtraHeight;
     };

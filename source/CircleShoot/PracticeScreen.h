@@ -20,11 +20,12 @@ namespace Sexy
     ///////////////////////////////////////////////////////////////////////////////
     class PracticeScreen : public Widget, public ButtonListener
     {
-    private:
+    public:
         struct DoorInfo
         {
             MemoryImage *mImage;
             Rect mRect;
+            Widget *mSpoof;
         };
 
         typedef std::multiset<HighScore> HighScoreSet;

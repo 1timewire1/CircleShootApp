@@ -75,6 +75,8 @@ AdventureScreen::AdventureScreen()
 		mDoorInfo[i].mImage = (MemoryImage *)anImage;
 		mDoorInfo[i].mRect = Rect(aDoorPoints[i].mX, aDoorPoints[i].mY, aWidth / 4, aHeight);
 		mDoorInfo[i].mUnknown = Point(aDoorPointsBounds[i].mX, aDoorPointsBounds[i].mY);
+        mDoorInfo[i].mSpoof = MakeSpoofButton(this, mDoorInfo[i].mRect.mWidth, mDoorInfo[i].mRect.mHeight);
+        mDoorInfo[i].mSpoof->SetDisabled(true);
 	}
 
 	for (int i = 0; i < 4; i++)
@@ -94,6 +96,10 @@ AdventureScreen::~AdventureScreen()
 	delete mPlayButton;
 
 	delete mScoreSet;
+    for (int i = 0; i < 12; i++)
+    {
+        delete mDoorInfo[i].mSpoof;
+    }
 
 	gSexyAppBase->mResourceManager->DeleteExtraImageBuffers("AdventureScreen");
 }
@@ -174,6 +180,11 @@ void AdventureScreen::Resize(int theX, int theY, int theWidth, int theHeight)
 
 	mMainMenuButton->Resize(theX, theY + 438, mMainMenuButton->mWidth, mMainMenuButton->mHeight);
 	mPlayButton->Resize(theX + 542, theY + 441, mPlayButton->mWidth, mPlayButton->mHeight);
+    for (int i = 0; i < 12; i++)
+    {
+        Widget *w = mDoorInfo[i].mSpoof;
+        w->Resize(theX + mDoorInfo[i].mRect.mX, theY + mDoorInfo[i].mRect.mY, w->mWidth, w->mHeight);
+    }
 }
 
 void AdventureScreen::AddedToManager(WidgetManager *theWidgetManager)
@@ -182,6 +193,10 @@ void AdventureScreen::AddedToManager(WidgetManager *theWidgetManager)
 
 	theWidgetManager->AddWidget(mMainMenuButton);
 	theWidgetManager->AddWidget(mPlayButton);
+    for (int i = 0; i < 12; i++)
+    {
+        theWidgetManager->AddWidget(mDoorInfo[i].mSpoof);
+    }
 }
 
 void AdventureScreen::RemovedFromManager(WidgetManager *theWidgetManager)
@@ -190,6 +205,10 @@ void AdventureScreen::RemovedFromManager(WidgetManager *theWidgetManager)
 
 	theWidgetManager->RemoveWidget(mMainMenuButton);
 	theWidgetManager->RemoveWidget(mPlayButton);
+    for (int i = 0; i < 12; i++)
+    {
+        theWidgetManager->RemoveWidget(mDoorInfo[i].mSpoof);
+    }
 }
 
 void AdventureScreen::ButtonDepress(int theId)
@@ -448,6 +467,7 @@ void AdventureScreen::DrawDoors(Graphics *g, int first, int last)
 			aCell = 1;
 		}
 
+        mDoorInfo[i].mSpoof->SetDisabled(aCell == 0);
 		g->DrawImageCel(mDoorInfo[i].mImage, mDoorInfo[i].mRect.mX, mDoorInfo[i].mRect.mY, aCell);
 	}
 }

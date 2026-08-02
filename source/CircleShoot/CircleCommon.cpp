@@ -19,6 +19,7 @@
 #include "CircleCheckbox.h"
 #include "Res.h"
 
+#include <climits>
 #include <map>
 
 using namespace Sexy;
@@ -236,6 +237,12 @@ void Sexy::SetupButton(DialogButton *theButton, int numCols)
     }
 }
 
+CircleButton *Sexy::MakeSpoofButton(ButtonListener *theListener, int w, int h)
+{
+    MemoryImage *img = new MemoryImage();
+    img->Create(w, h);
+    return Sexy::MakeButton(INT_MAX, theListener, "", 0, img, 1);
+}
 CircleButton *Sexy::MakeButton(int id, ButtonListener *theListener, std::string const &label, int flags, Sexy::Image *image, int numCols)
 {
     bool customImage;

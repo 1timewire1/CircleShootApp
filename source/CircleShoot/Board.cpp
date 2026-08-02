@@ -252,13 +252,14 @@ void Board::LoadProc()
     }
 }
 
-void Board::DoAccuracy(bool accuracy)
+void Board::DoAccuracy(bool aAccuracyPowerup)
 {
+    bool accuracy = (aAccuracyPowerup || mApp->mController);
     mRecalcGuide = accuracy;
     mShowGuide = accuracy;
     mDoGuide = accuracy;
 
-    if (accuracy)
+    if (aAccuracyPowerup)
     {
         mGun->SetFireSpeed(15.0f);
     }
@@ -1075,7 +1076,7 @@ void Board::DrawPlaying(Graphics *g)
     {
         int anAlpha = 120;
 
-        if (mAccuracyCount <= 300)
+        if (mAccuracyCount <= 300 && mApp->mController == NULL)
         {
             anAlpha = (120 * mAccuracyCount) / 300 + 8;
         }
