@@ -1029,11 +1029,6 @@ void CircleShootApp::DoGetReadyDialog()
 
 void CircleShootApp::PlaySong(int id, bool fade, double fadeSpeed)
 {
-#if defined(__SWITCH__)
-    // TODO: figure out why this is crashing
-    return;
-#endif
-
     if (this->mLastSong != id)
     {
         int prevSong = mSongId;
@@ -1920,7 +1915,7 @@ void CircleShootApp::HandleEvent(SDL_Event *ev)
                     mBoard->mTransitionMgr->FinishAllTextBlurbs();
                     mBoard->mTransitionMgr->mResetFrame = mBoard->mTransitionMgr->mStateCount;
                 }
-                else
+                else if (mControllerWidget)
                 {
                     int x = mControllerWidget->mX + mControllerWidget->mWidth / 2.0f;
                     int y = mControllerWidget->mY + mControllerWidget->mHeight / 2.0f;
