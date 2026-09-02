@@ -375,6 +375,9 @@ void PlatformInit()
         }
     };
     SDL_LogSetOutputFunction(LogFunction, logfile);
+
+    // don't change button positions to match switch layout
+    SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
 }
 extern "C" {
 	u32 __nx_stack_size = 4 * 1024 * 1024; // 4MB
